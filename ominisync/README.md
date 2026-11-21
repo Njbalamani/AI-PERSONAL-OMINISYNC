@@ -35,6 +35,7 @@ The Python application is credential-free by default for demo usage, but real in
 
 ```text
 AI-PERSONAL-OMINISYNC/
+├── README.md
 └── ominisync/
     ├── manage.py
     ├── requirements.txt
@@ -62,6 +63,7 @@ AI-PERSONAL-OMINISYNC/
     │   ├── tests.py
     │   │
     │   ├── migrations/
+    │   │   ├── __init__.py
     │   │   ├── 0001_initial.py
     │   │   ├── 0002_alter_whatsappmessage_message_id_and_more.py
     │   │   ├── 0003_alter_generatedbriefing_id.py
@@ -74,32 +76,62 @@ AI-PERSONAL-OMINISYNC/
     │           └── run_due_jobs.py
     │
     ├── whatsapp_bridge/
+    │   ├── index.js
     │   ├── package.json
     │   ├── package-lock.json
-    │   ├── index.js
     │   └── sessions/                 # ignored; runtime Baileys credentials
     │
     ├── templates/
-    │   ├── base.html
-    │   ├── landing.html
-    │   ├── sign_in.html
-    │   ├── sign_up.html
     │   ├── auth_callback.html
-    │   ├── gmail_callback.html
-    │   ├── pair.html
-    │   ├── offline.html
+    │   ├── base.html
+    │   ├── briefing_detail.html
     │   ├── dashboard.html
-    │   └── briefing_detail.html
+    │   ├── gmail_callback.html
+    │   ├── landing.html
+    │   ├── offline.html
+    │   ├── pair.html
+    │   ├── sign_in.html
+    │   └── sign_up.html
     │
     ├── static/
     │   ├── app.js
     │   ├── style.css
     │   ├── manifest.webmanifest
     │   ├── sw.js
-    │   ├── icons/
+    │   ├── offline.html
     │   ├── 001-gmail.png
     │   ├── 002-whatsapp.png
-    │   └── ... other copied public assets
+    │   ├── 003-email.png
+    │   ├── 004-telegram.png
+    │   ├── 005-slack.png
+    │   ├── 006-discord.png
+    │   ├── 007-linkedin.png
+    │   ├── file.svg
+    │   ├── globe.svg
+    │   ├── next.svg
+    │   ├── vercel.svg
+    │   ├── window.svg
+    │   │
+    │   └── icons/
+    │       ├── icon-48.png
+    │       ├── icon-72.png
+    │       ├── icon-96.png
+    │       ├── icon-108.png
+    │       ├── icon-128.png
+    │       ├── icon-144.png
+    │       ├── icon-152.png
+    │       ├── icon-162.png
+    │       ├── icon-167.png
+    │       ├── icon-180.png
+    │       ├── icon-192.png
+    │       ├── icon-216.png
+    │       ├── icon-256.png
+    │       ├── icon-324.png
+    │       ├── icon-384.png
+    │       ├── icon-432.png
+    │       ├── icon-512.png
+    │       ├── icon-1024.png
+    │       └── icon-maskable-512.png
     │
     └── db.sqlite3                    # ignored; created by migrate
 ```
@@ -110,6 +142,7 @@ AI-PERSONAL-OMINISYNC/
 
 | Path | Responsibility |
 |---|---|
+| `README.md` | Root repository documentation |
 | `config/settings.py` | Django configuration, `.env` loading, OAuth variables, allowed hosts, apps, middleware |
 | `config/urls.py` | Root URLConf; includes `core.urls` |
 | `core/models.py` | All persistent tables: users, profiles, OTPs, Gmail, WhatsApp, alerts, briefings, ML examples |
@@ -121,7 +154,22 @@ AI-PERSONAL-OMINISYNC/
 | `core/management/commands/run_due_jobs.py` | Scheduled alert and briefing generation |
 | `templates/` | Django templates for every product page |
 | `static/app.js` | Frontend behavior, dashboard interactions, modals, API polling |
+| `static/style.css` | Dashboard, modal, WhatsApp state, pairing code, and responsive styles |
 | `whatsapp_bridge/index.js` | Local Baileys HTTP bridge for real WhatsApp pairing and messaging |
+| `whatsapp_bridge/package.json` | Node dependencies and scripts for the Baileys bridge |
+| `whatsapp_bridge/package-lock.json` | Locked Node dependency versions for reproducible bridge installs |
+
+### Files updated in the latest WhatsApp fix
+
+| Path | Change |
+|---|---|
+| `whatsapp_bridge/index.js` | Real Baileys pairing, session lifecycle, dedupe, status mapping, reconnect and error handling |
+| `core/services.py` | Real bridge client, state normalization, phone validation, error propagation, simulated-mode separation |
+| `core/tests.py` | Regression tests for pairing, status, errors, and simulated/real distinction |
+| `core/views.py` | Dashboard `whatsapp_simulated` context |
+| `templates/dashboard.html` | Real/simulated status labels, pairing modal, copy/retry/status controls |
+| `static/app.js` | Real connection flow, polling, validation, copy code, busy states, error display |
+| `static/style.css` | Pairing-code, state, progress, connected-account, and mobile styles |
 
 ---
 
