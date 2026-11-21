@@ -172,9 +172,9 @@
           </article>
           <article class="integration-card">
             <img src="/002-whatsapp.png" alt=""><h2>WhatsApp</h2><p>Summarize chats, track follow-ups, and send messages.</p>
-            <span class="pill {% if whatsapp_connected %}success{% else %}muted{% endif %}">{% if whatsapp_connected %}Connected{% else %}Disconnected{% endif %}</span>
+            <span class="pill {% if whatsapp_connected %}success{% else %}muted{% endif %}">{% if whatsapp_connected and whatsapp_simulated %}Connected (simulated){% elif whatsapp_connected %}Connected (WhatsApp){% else %}Disconnected{% endif %}</span>
             <div class="integration-actions">
-              {% if whatsapp_connected %}<button class="btn btn-danger btn-small" type="button" data-disconnect="whatsapp">Disconnect</button>{% else %}<button class="btn btn-primary btn-small" type="button" data-open-modal="whatsapp-modal">Connect Integration</button>{% endif %}
+              {% if whatsapp_connected and not whatsapp_simulated %}<button class="btn btn-danger btn-small" type="button" data-disconnect="whatsapp">Disconnect</button>{% else %}<button class="btn btn-primary btn-small" type="button" data-open-modal="whatsapp-modal">{% if whatsapp_simulated %}Connect Real WhatsApp{% else %}Connect Integration{% endif %}</button>{% endif %}
               <button class="btn btn-secondary btn-small" type="button" data-open-modal="tools-modal" data-tools="whatsapp">Settings</button>
             </div>
           </article>
@@ -273,11 +273,19 @@
 <div class="modal hidden" data-modal="whatsapp-modal">
   <div class="modal-card">
     <div class="panel-head"><h2>Connect WhatsApp Account</h2><button class="icon-btn" type="button" data-close-modal>×</button></div>
-    <ol><li>Open WhatsApp on your mobile device.</li><li>Go to Settings &gt; Linked Devices &gt; Link a Device.</li><li>Select Link with phone number instead and enter the pairing code below.</li></ol>
-    <label>Phone Number<input type="tel" name="phoneNumber" data-wa-phone placeholder="+919876543210"></label>
+    <ol><li>Open WhatsApp on your mobile device.</li><li>Go to Settings &gt; Linked Devices &gt; Link a Device.</li><li>Select Link with phone number instead and enter the real pairing code below.</li></ol>
+    <div class="wa-state-row"><span class="wa-state" data-wa-state>DISCONNECTED</span><span class="wa-progress hidden" aria-hidden="true" data-wa-progress><i></i></span></div>
+    <label>Phone Number<input type="tel" name="phoneNumber" data-wa-phone placeholder="+919876543210" autocomplete="tel" inputmode="tel"></label>
     <div class="pairing-code hidden" data-wa-code></div>
-    <div class="pair-status" data-wa-status></div>
-    <div class="panel-actions"><button class="btn btn-primary" type="button" data-whatsapp-action="connect">Connect</button><button class="btn btn-secondary" type="button" data-whatsapp-action="connect-simulated">Use Simulated Mode</button><button class="btn btn-secondary" type="button" data-whatsapp-action="status">Check Status</button></div>
+    <div class="wa-code-actions"><button class="btn btn-secondary btn-small hidden" type="button" data-wa-copy>Copy Code</button></div>
+    <div class="form-status" data-wa-status></div>
+    <div class="wa-connected hidden" data-wa-account></div>
+    <div class="panel-actions wa-actions">
+      <button class="btn btn-primary" type="button" data-whatsapp-action="connect">Connect</button>
+      <button class="btn btn-secondary hidden" type="button" data-whatsapp-action="retry">Retry Connection</button>
+      <button class="btn btn-secondary" type="button" data-whatsapp-action="connect-simulated">Use Simulated Mode</button>
+      <button class="btn btn-secondary" type="button" data-whatsapp-action="status">Refresh Status</button>
+    </div>
   </div>
 </div>
 

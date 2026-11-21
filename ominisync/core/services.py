@@ -551,8 +551,6 @@ def normalize_whatsapp_phone(value: str) -> str:
     if digits.startswith("00"):
         digits = digits[2:]
     digits = digits.lstrip("0")
-    if len(digits) == 14 and digits.startswith("9191"):
-        digits = digits[2:]
     if len(digits) == 10 and digits[0] in "6789":
         digits = "91" + digits
     if not re.fullmatch(r"[1-9]\d{7,14}", digits):
@@ -615,7 +613,9 @@ def _bridge_request(path: str, payload: dict, timeout: int = 30) -> dict:
         raise ValueError(f"WhatsApp bridge is unreachable: {exc.reason}") from exc
     if "error" in result:
         error = result["error"]
-        raise McpError(int(error.get("code") or -32603), str(error.get("message") or "WhatsApp bridge error"))
+        if isinstance(error, dict):
+            raise McpError(int(error.get("code") or -32603), str(error.get("message") or "WhatsApp bridge error"))
+        raise McpError(-32603, str(error or "WhatsApp bridge error"))
     return result
 
 
@@ -625,37 +625,77 @@ def _bridge_datetime(ms: int | None):
     return datetime.fromtimestamp(ms / 1000, tz=dt_timezone.utc)
 
 
+WHATSAPP_STATES = {
+    "connected": "CONNECTED",
+    "connecting": "INITIALIZING",
+    "pairing_code_generated": "PAIRING_CODE_GENERATED",
+    "disconnected": "DISCONNECTED",
+    "reconnecting": "RECONNECTING",
+    "error": "CONNECTION_FAILED",
+}
+
+
+def _whatsapp_state(status: str, connected: bool = False, is_simulated: bool = False) -> str:
+    if connected:
+        return "CONNECTED"
+    return WHATSAPP_STATES.get((status or "").lower(), "INITIALIZING" if status else "DISCONNECTED")
+
+
+def _whatsapp_result(session: WhatsAppSession, bridge: dict | None = None) -> dict:
+    now = timezone.now()
+    status = (bridge or {}).get("status", session.status)
+    pairing_code = (bridge or {}).get("pairingCode") or ""
+    expires_ms = (bridge or {}).get("pairingCodeExpiresAt")
+    expires_at = _bridge_datetime(expires_ms) if expires_ms else session.pairing_expires_at
+    if pairing_code and expires_at and expires_at <= now:
+        pairing_code = ""
+        expires_at = None
+    connected = bool((bridge or {}).get("connected", session.status == "connected"))
+    payload = {
+        "success": True,
+        "state": (bridge or {}).get("state") or _whatsapp_state(status, connected),
+        "status": status,
+        "connected": connected,
+        "isSimulated": bool((bridge or {}).get("isSimulated", session.is_simulated)),
+        "phoneNumber": (bridge or {}).get("phoneNumber") or session.phone_number,
+        "pairable": bool((bridge or {}).get("pairable", True)),
+        "pending": bool((bridge or {}).get("pending", False)),
+        "pairingCode": pairing_code,
+        "pairingCodeExpiresAt": int(expires_at.timestamp() * 1000) if expires_at else 0,
+        "error": (bridge or {}).get("error") or session.error or "",
+    }
+    return payload
+
+
 def whatsapp_connect(profile: UserProfile, action: str, phone_number: str = "") -> dict:
     session, _ = WhatsAppSession.objects.get_or_create(profile=profile)
     if action == "status":
-        result = {
-            "success": True,
-            "status": session.status,
-            "isSimulated": session.is_simulated,
-        }
-        if session.pairing_code and session.pairing_expires_at and session.pairing_expires_at > timezone.now():
-            result["pairingCode"] = session.pairing_code
-            result["pairingCodeExpiresAt"] = int(session.pairing_expires_at.timestamp() * 1000)
-        if session.error:
-            result["error"] = session.error
-        if not session.is_simulated and session.status != "disconnected":
-            bridge = _bridge_request("/status", {"sessionId": str(profile.id)}, timeout=5)
-            session.status = bridge.get("status", session.status)
-            session.pairing_code = bridge.get("pairingCode") or ""
-            session.pairing_expires_at = _bridge_datetime(bridge.get("pairingCodeExpiresAt"))
-            session.error = bridge.get("error") or ""
-            session.save(update_fields=["status", "pairing_code", "pairing_expires_at", "error"])
-            result.update(bridge)
-            if bridge.get("connected"):
-                profile.set_integration("whatsapp", {
-                    "connected": True,
-                    "phoneNumber": bridge.get("phoneNumber") or session.phone_number,
-                    "isSimulated": False,
-                    "connectedAt": iso_format(timezone.now()),
-                })
-        return result
+        if session.is_simulated:
+            return _whatsapp_result(session)
+        status_payload = {"sessionId": str(profile.id)}
+        if session.phone_number:
+            status_payload["phoneNumber"] = session.phone_number
+        bridge = _bridge_request("/status", status_payload, timeout=8)
+        session.status = bridge.get("status", session.status)
+        session.pairing_code = bridge.get("pairingCode") or ""
+        session.pairing_expires_at = _bridge_datetime(bridge.get("pairingCodeExpiresAt"))
+        session.error = bridge.get("error") or ""
+        session.phone_number = bridge.get("phoneNumber") or session.phone_number
+        session.save(update_fields=["status", "pairing_code", "pairing_expires_at", "error", "phone_number"])
+        if bridge.get("connected"):
+            profile.set_integration("whatsapp", {
+                "connected": True,
+                "phoneNumber": bridge.get("phoneNumber") or session.phone_number,
+                "isSimulated": False,
+                "connectedAt": iso_format(timezone.now()),
+            })
+        else:
+            integration = profile.integration("whatsapp")
+            if integration.get("connected") and not integration.get("isSimulated"):
+                profile.clear_integration("whatsapp")
+        return _whatsapp_result(session, bridge)
     if action == "disconnect":
-        if not session.is_simulated and session.status != "disconnected":
+        if not session.is_simulated:
             try:
                 _bridge_request("/disconnect", {"sessionId": str(profile.id)}, timeout=10)
             except Exception:
@@ -664,11 +704,12 @@ def whatsapp_connect(profile: UserProfile, action: str, phone_number: str = "") 
         session.pairing_code = ""
         session.pairing_expires_at = None
         session.is_simulated = False
+        session.phone_number = ""
         session.connected_at = None
         session.error = ""
         session.save()
         profile.clear_integration("whatsapp")
-        return {"success": True, "status": "disconnected"}
+        return {"success": True, "state": "DISCONNECTED", "status": "disconnected", "connected": False, "isSimulated": False}
     if action == "connect-simulated":
         session.status = "connected"
         session.is_simulated = True
@@ -682,7 +723,11 @@ def whatsapp_connect(profile: UserProfile, action: str, phone_number: str = "") 
             "connected": True, "phoneNumber": session.phone_number,
             "isSimulated": True, "connectedAt": iso_format(session.connected_at),
         })
-        return {"success": True, "status": "connected", "isSimulated": True}
+        return {
+            "success": True, "state": "CONNECTED", "status": "connected",
+            "connected": True, "isSimulated": True,
+            "notice": "Simulated WhatsApp mode enabled. This is not a real WhatsApp account.",
+        }
     if action == "connect":
         if not phone_number:
             raise ValueError("Phone number is required for connection.")
@@ -694,16 +739,18 @@ def whatsapp_connect(profile: UserProfile, action: str, phone_number: str = "") 
         session.pairing_expires_at = _bridge_datetime(bridge.get("pairingCodeExpiresAt"))
         session.is_simulated = False
         session.error = bridge.get("error") or ""
-        if bridge.get("connected"):
+        connected = bool(bridge.get("connected"))
+        if connected:
             session.connected_at = timezone.now()
             profile.set_integration("whatsapp", {
                 "connected": True, "phoneNumber": digits, "isSimulated": False,
                 "connectedAt": iso_format(session.connected_at),
             })
         session.save()
-        bridge.setdefault("success", True)
-        bridge.setdefault("notice", "Enter this exact code in WhatsApp → Linked Devices → Link with phone number instead.")
-        return bridge
+        result = _whatsapp_result(session, bridge)
+        if result["pairingCode"] and not result["error"]:
+            result["notice"] = "Enter this exact code in WhatsApp → Linked Devices → Link with phone number instead."
+        return result
     raise ValueError("Invalid action.")
 
 

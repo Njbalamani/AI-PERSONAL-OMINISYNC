@@ -18,7 +18,7 @@ from core.models import (
     UserProfile,
     WaitlistEntry,
 )
-from core.services import McpError, connect_simulated_gmail, get_or_create_profile, gmail_mcp
+from core.services import McpError, _bridge_request, connect_simulated_gmail, get_or_create_profile, gmail_mcp
 
 
 @override_settings(
@@ -363,13 +363,77 @@ class OmniSyncTests(TestCase):
         self.assertEqual(blocked.json()["error"]["code"], -32001)
         simulated = self.post_json("/api/whatsapp-connect", {**base, "action": "connect-simulated"})
         self.assertTrue(simulated.json()["isSimulated"])
+        self.assertNotIn("pairingCode", simulated.json())
         with patch("core.services._bridge_request", return_value={
-            "success": True, "status": "connecting", "isSimulated": False,
-            "pairingCode": "ABCD2345", "pairingCodeExpiresAt": 4102444800000,
+            "success": True, "state": "PAIRING_CODE_GENERATED", "status": "pairing_code_generated",
+            "isSimulated": False, "connected": False, "pairingCode": "ABCD2345",
+            "pairingCodeExpiresAt": 4102444800000,
         }):
             paired = self.post_json("/api/whatsapp-connect", {**base, "action": "connect", "phoneNumber": "+919876543210"})
         self.assertEqual(len(paired.json()["pairingCode"]), 8)
         self.assertFalse(paired.json()["isSimulated"])
+        self.assertEqual(paired.json()["state"], "PAIRING_CODE_GENERATED")
+        self.assertIn("Enter this exact code", paired.json()["notice"])
+
+    def test_bridge_string_errors_surfaces_as_mcp_error(self):
+        class FakeResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return json.dumps({"error": "WhatsApp pairing failed: 401"}).encode("utf-8")
+
+        with patch("core.services._start_bridge"), patch("core.services.urllib.request.urlopen", return_value=FakeResponse()):
+            with self.assertRaises(McpError) as raised:
+                _bridge_request("/status", {"sessionId": "x"}, timeout=1)
+        self.assertEqual(raised.exception.message, "WhatsApp pairing failed: 401")
+
+    def test_whatsapp_pairing_error_is_not_masked_by_notice(self):
+        base = {"userId": str(self.profile.id)}
+        with patch("core.services._bridge_request", return_value={
+            "success": True, "state": "CONNECTION_FAILED", "status": "error",
+            "isSimulated": False, "connected": False, "error": "WhatsApp pairing failed: 401",
+        }):
+            response = self.post_json("/api/whatsapp-connect", {**base, "action": "connect", "phoneNumber": "+919876543210"})
+        payload = response.json()
+        self.assertEqual(payload["error"], "WhatsApp pairing failed: 401")
+        self.assertNotIn("notice", payload)
+        self.assertEqual(payload["state"], "CONNECTION_FAILED")
+
+    def test_whatsapp_status_never_reports_connected_without_bridge_confirmation(self):
+        base = {"userId": str(self.profile.id)}
+        session = self.profile.whatsapp_session
+        session.status = "connected"
+        session.is_simulated = False
+        session.phone_number = "919876543210"
+        session.save()
+        self.profile.set_integration("whatsapp", {
+            "connected": True, "phoneNumber": "919876543210",
+            "isSimulated": False, "connectedAt": "2026-11-21T00:00:00Z",
+        })
+        with patch("core.services._bridge_request", return_value={
+            "success": True, "state": "DISCONNECTED", "status": "disconnected",
+            "connected": False, "isSimulated": False,
+        }) as bridge:
+            response = self.post_json("/api/whatsapp-connect", {**base, "action": "status"})
+        self.assertEqual(bridge.call_args.args[0], "/status")
+        self.assertEqual(bridge.call_args.args[1]["phoneNumber"], "919876543210")
+        payload = response.json()
+        self.assertFalse(payload["connected"])
+        self.assertEqual(payload["state"], "DISCONNECTED")
+        self.profile.refresh_from_db()
+        self.assertNotIn("whatsapp", self.profile.integration("whatsapp"))
+
+    def test_dashboard_marks_seeded_whatsapp_as_simulated(self):
+        response = self.client.get("/dashboard?tab=integrations")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Connected (simulated)")
+        self.assertContains(response, "Connect Real WhatsApp")
 
     def test_briefings_and_schedules(self):
         user_id = str(self.profile.id)

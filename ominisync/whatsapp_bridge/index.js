@@ -8,6 +8,8 @@ const PAIRING_TTL_MS = 3 * 60 * 1000;
 
 const sessions = new Map();
 const reconnecting = new Set();
+const connectOperations = new Map();
+let sessionGeneration = 0;
 let baileysModule = null;
 let pinoFn = null;
 
@@ -47,7 +49,6 @@ function normalizePhone(value) {
   let digits = String(value || "").replace(/\D/g, "");
   if (digits.startsWith("00")) digits = digits.slice(2);
   digits = digits.replace(/^0+/, "");
-  if (digits.length === 14 && digits.startsWith("9191")) digits = digits.slice(2);
   if (digits.length === 10 && /^[6-9]/.test(digits)) digits = "91" + digits;
   if (!/^[1-9]\d{7,14}$/.test(digits)) {
     throw new Error("Enter a valid phone number, with country code if outside India. Indian 10-digit numbers are accepted.");
@@ -182,18 +183,32 @@ class SessionStore {
 function statusPayload(sessionId) {
   const session = sessions.get(sessionId);
   if (!session) {
-    return { success: true, status: "disconnected", connected: false, isSimulated: false, phoneNumber: "", error: "" };
+    return {
+      success: true,
+      state: "DISCONNECTED",
+      status: "disconnected",
+      connected: false,
+      isSimulated: false,
+      phoneNumber: "",
+      pairable: true,
+      pairingCode: "",
+      pairingCodeExpiresAt: 0,
+      error: "",
+    };
   }
   const now = Date.now();
   const code = session.pairingCode && session.pairingCodeExpiresAt > now ? session.pairingCode : "";
   return {
     success: true,
+    state: session.state,
     status: session.status,
-    connected: session.status === "connected",
+    connected: session.status === "connected" && Boolean(session.auth.creds.registered),
     isSimulated: false,
     phoneNumber: session.phoneNumber || "",
+    pairable: !session.auth.creds.registered,
     pairingCode: code,
     pairingCodeExpiresAt: code ? session.pairingCodeExpiresAt : 0,
+    pending: Boolean(session.pairingPromise),
     error: session.error || "",
   };
 }
@@ -203,6 +218,7 @@ async function waitForPairingResult(session, ms) {
   while (Date.now() - started < ms) {
     if (session.status === "connected") return statusPayload(session.sessionId);
     if (session.pairingCode && session.pairingCodeExpiresAt > Date.now()) return statusPayload(session.sessionId);
+    if (session.hasRegisteredCreds() && !session.pairingPromise) return statusPayload(session.sessionId);
     if (session.error && !session.pairingPromise) return statusPayload(session.sessionId);
     await delay(250);
   }
@@ -221,6 +237,8 @@ async function requestPairingWithRetry(session, phoneNumber) {
     try {
       const code = await session.sock.requestPairingCode(phoneNumber);
       if (!code) throw new Error("WhatsApp did not return a pairing code.");
+      session.status = "pairing_code_generated";
+      session.state = "PAIRING_CODE_GENERATED";
       session.pairingCode = String(code).toUpperCase();
       session.pairingCodeExpiresAt = Date.now() + PAIRING_TTL_MS;
       session.error = "";
@@ -231,8 +249,12 @@ async function requestPairingWithRetry(session, phoneNumber) {
     }
   }
   session.status = "error";
-  session.error = "Could not get a code from WhatsApp. Check the number and try again.";
-  if (lastError) session.lastPairingError = String(lastError.message || lastError);
+  session.state = "CONNECTION_FAILED";
+  const reason = lastError ? String(lastError.message || lastError).slice(0, 240) : "";
+  session.error = reason
+    ? `WhatsApp pairing failed: ${reason}`
+    : "Could not get a code from WhatsApp. Check the number and try again.";
+  session.lastPairingError = reason;
 }
 
 function ensurePairing(session, phoneNumber) {
@@ -251,8 +273,9 @@ async function stopSession(sessionId, removeFiles) {
     if (removeFiles) fs.rmSync(path.join(SESSIONS_DIR, safeId(sessionId)), { recursive: true, force: true });
     return;
   }
+  session.closed = true;
   try {
-    await withTimeout(session.sock.logout(), 3000, undefined);
+    if (!removeFiles) await withTimeout(session.sock.logout(), 3000, undefined);
   } catch (error) {
     void error;
   }
@@ -261,6 +284,7 @@ async function stopSession(sessionId, removeFiles) {
   } catch (error) {
     void error;
   }
+  session.sock.ev.removeAllListeners();
   if (removeFiles) fs.rmSync(path.join(SESSIONS_DIR, safeId(sessionId)), { recursive: true, force: true });
 }
 
@@ -279,11 +303,14 @@ async function createSession(sessionId, phoneNumber, fresh) {
     printQRInTerminal: false,
   });
   const store = new SessionStore(sessionId, dir, phoneNumber);
+  const generation = ++sessionGeneration;
   const session = {
     sessionId,
     sock,
+    generation,
     auth: state,
     store,
+    state: "INITIALIZING",
     status: "connecting",
     phoneNumber: phoneNumber || "",
     pairingCode: "",
@@ -291,6 +318,8 @@ async function createSession(sessionId, phoneNumber, fresh) {
     pairingPromise: null,
     error: "",
     everConnected: false,
+    closed: false,
+    hasRegisteredCreds: () => Boolean(state.creds.registered),
   };
   sessions.set(sessionId, session);
 
@@ -308,13 +337,16 @@ async function createSession(sessionId, phoneNumber, fresh) {
     if (event.type === "notify" || event.type === "append") store.addMessages(event.messages);
   });
   sock.ev.on("connection.update", (update) => {
+    if (session.closed || sessions.get(sessionId) !== session || sessions.get(sessionId)?.generation !== generation) return;
     const { connection, lastDisconnect } = update;
     if (connection === "connecting") {
+      session.state = state.creds.registered ? "RECONNECTING" : "INITIALIZING";
       session.status = "connecting";
       void ensurePairing(session, session.phoneNumber);
       return;
     }
     if (connection === "open") {
+      session.state = "CONNECTED";
       session.status = "connected";
       session.everConnected = true;
       session.pairingCode = "";
@@ -323,6 +355,7 @@ async function createSession(sessionId, phoneNumber, fresh) {
       return;
     }
     if (connection === "close") {
+      session.state = "DISCONNECTED";
       session.status = "disconnected";
       session.pairingCode = "";
       session.pairingCodeExpiresAt = 0;
@@ -332,10 +365,13 @@ async function createSession(sessionId, phoneNumber, fresh) {
         session.error = "WhatsApp session was logged out. Connect again to get a new code.";
         return;
       }
-      if (session.everConnected && !reconnecting.has(sessionId)) {
+      if (session.everConnected && !reconnecting.has(sessionId) && !session.closed) {
         reconnecting.add(sessionId);
+        session.state = "RECONNECTING";
+        session.status = "reconnecting";
         setTimeout(async () => {
           try {
+            if (sessions.get(sessionId)?.generation !== generation) return;
             await createSession(sessionId, session.phoneNumber, false);
           } catch (error) {
             void error;
@@ -349,6 +385,22 @@ async function createSession(sessionId, phoneNumber, fresh) {
 
   if (!state.creds.registered && phoneNumber) await ensurePairing(session, phoneNumber);
   return session;
+}
+
+async function connectSession(sessionId, phoneNumber) {
+  const existing = sessions.get(sessionId);
+  if (connectOperations.has(sessionId)) return connectOperations.get(sessionId);
+  if (existing && existing.phoneNumber === phoneNumber && existing.status !== "error" && existing.status !== "disconnected") {
+    return statusPayload(sessionId);
+  }
+  const operation = (async () => {
+    await stopSession(sessionId, true);
+    const session = await createSession(sessionId, phoneNumber, true);
+    await withTimeout(waitForPairingResult(session, 20000), 21000, statusPayload(sessionId));
+    return statusPayload(sessionId);
+  })().finally(() => connectOperations.delete(sessionId));
+  connectOperations.set(sessionId, operation);
+  return operation;
 }
 
 function recentMessages(session, limit) {
@@ -463,20 +515,25 @@ const server = http.createServer(async (request, response) => {
 
     if (url.pathname === "/connect") {
       const phoneNumber = normalizePhone(body.phoneNumber);
-      await stopSession(sessionId, true);
-      const session = await createSession(sessionId, phoneNumber, true);
-      const result = await withTimeout(waitForPairingResult(session, 20000), 21000, statusPayload(sessionId));
+      const result = await connectSession(sessionId, phoneNumber);
       return sendJson(response, 200, result);
     }
     if (url.pathname === "/status") {
-      if (!sessions.has(sessionId)) {
-        const dir = path.join(SESSIONS_DIR, sessionId);
+      if (!sessions.has(sessionId) && !connectOperations.has(sessionId)) {
+        const dir = path.join(SESSIONS_DIR, safeId(sessionId));
         try {
           const creds = JSON.parse(fs.readFileSync(path.join(dir, "creds.json"), "utf8"));
-          const stored = JSON.parse(fs.readFileSync(path.join(dir, "store.json"), "utf8"));
           if (creds.registered) {
-            const phone = stored.phoneNumber || "";
-            await createSession(sessionId, phone, false);
+            let phone = "";
+            try {
+              if (body.phoneNumber) phone = normalizePhone(body.phoneNumber);
+              const stored = JSON.parse(fs.readFileSync(path.join(dir, "store.json"), "utf8"));
+              if (!phone && stored.phoneNumber) phone = normalizePhone(stored.phoneNumber);
+            } catch (error) {
+              void error;
+            }
+            const restored = await createSession(sessionId, phone, false);
+            await withTimeout(waitForPairingResult(restored, 5000), 6000, statusPayload(sessionId));
           }
         } catch (error) {
           void error;

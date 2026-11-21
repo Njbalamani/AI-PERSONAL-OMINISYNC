@@ -279,6 +279,7 @@ def dashboard(request):
         "gmail_connected": "gmail" in profile.connected_apps(),
         "gmail_simulated": bool(profile.integration("gmail").get("isSimulated")),
         "whatsapp_connected": "whatsapp" in profile.connected_apps(),
+        "whatsapp_simulated": bool(profile.integration("whatsapp").get("isSimulated")),
         "brief": dashboard_brief(profile),
         "chat_messages": serialize_chat(profile),
         "briefings": [briefing_out(item) for item in profile.generated_briefings.all()[:10]],

@@ -442,62 +442,180 @@
     });
 
     let whatsappPoll = null;
-    function applyWhatsappState(data, modal) {
-      const codeBox = modal?.querySelector("[data-wa-code]");
-      const waStatus = modal?.querySelector("[data-wa-status]") || status;
-      if (codeBox && data.pairingCode) {
-        codeBox.textContent = data.pairingCode;
-        codeBox.classList.remove("hidden");
-      }
-      const minutes = data.pairingCodeExpiresAt ? Math.max(0, Math.ceil((data.pairingCodeExpiresAt - Date.now()) / 60000)) : 0;
-      const message = data.notice || data.message || data.error || (data.isSimulated ? "WhatsApp simulated mode enabled." : data.status === "connected" ? "WhatsApp connected successfully!" : data.pairingCode ? "Enter the code on your phone. Waiting for WhatsApp..." : "WhatsApp status: " + data.status);
-      if (waStatus) waStatus.textContent = minutes && data.pairingCode ? message + " Code expires in " + minutes + " min." : message;
+    let whatsappBusy = false;
+
+    function normalizeWhatsappPhone(value) {
+      let digits = String(value || "").replace(/\D/g, "");
+      if (digits.startsWith("00")) digits = digits.slice(2);
+      digits = digits.replace(/^0+/, "");
+      if (digits.length === 10 && /^[6-9]/.test(digits)) digits = "91" + digits;
+      if (!/^[1-9]\d{7,14}$/.test(digits)) throw new Error("Enter a valid phone number, with country code if outside India. Indian 10-digit numbers are accepted.");
+      return digits;
     }
+
+    function whatsappState(data) {
+      if (data?.state) return data.state;
+      if (data?.error) return "CONNECTION_FAILED";
+      if (data?.connected) return "CONNECTED";
+      if (data?.pairingCode) return "PAIRING_CODE_GENERATED";
+      return String(data?.status || "DISCONNECTED").toUpperCase();
+    }
+
+    function whatsappMessage(data, state) {
+      if (data?.error) return data.error;
+      if (data?.notice) return data.notice;
+      if (data?.message) return data.message;
+      if (state === "CONNECTION_FAILED") return "WhatsApp connection failed. Check the error and retry.";
+      if (state === "INITIALIZING") return "Initializing WhatsApp connection...";
+      if (state === "RECONNECTING") return "WhatsApp connection dropped. Reconnecting...";
+      if (state === "PAIRING_CODE_GENERATED") return "Enter the code on your phone. Waiting for WhatsApp...";
+      if (state === "CONNECTED") return data?.isSimulated ? "WhatsApp simulated mode enabled. This is not a real WhatsApp account." : "WhatsApp connected successfully!";
+      return "WhatsApp disconnected.";
+    }
+
+    function applyWhatsappState(data, modal) {
+      const state = whatsappState(data);
+      const codeBox = modal?.querySelector("[data-wa-code]");
+      const copyButton = modal?.querySelector("[data-wa-copy]");
+      const waStatus = modal?.querySelector("[data-wa-status]") || status;
+      const statePill = modal?.querySelector("[data-wa-state]");
+      const accountBox = modal?.querySelector("[data-wa-account]");
+      const retryButton = modal?.querySelector('[data-whatsapp-action="retry"]');
+      const progress = modal?.querySelector("[data-wa-progress]");
+      const phone = data?.phoneNumber || "";
+
+      if (codeBox) {
+        codeBox.textContent = data?.pairingCode || "";
+        codeBox.classList.toggle("hidden", !data?.pairingCode);
+      }
+      if (copyButton) copyButton.classList.toggle("hidden", !data?.pairingCode);
+      if (statePill) {
+        statePill.textContent = state;
+        statePill.className = "wa-state" + (state === "CONNECTED" ? " connected" : state === "PAIRING_CODE_GENERATED" ? " pairing" : state === "CONNECTION_FAILED" ? " failed" : "");
+      }
+      if (retryButton) retryButton.classList.toggle("hidden", state !== "CONNECTION_FAILED");
+      if (progress) progress.classList.toggle("hidden", state !== "INITIALIZING" && state !== "RECONNECTING" && !data?.pending);
+      if (accountBox) {
+        accountBox.textContent = data?.connected ? (data?.isSimulated ? "Simulated account: " + (phone || "demo") + " — not a real WhatsApp connection." : "Connected WhatsApp account: " + phone) : "";
+        accountBox.classList.toggle("hidden", !data?.connected);
+      }
+      let message = whatsappMessage(data, state);
+      const minutes = data?.pairingCodeExpiresAt ? Math.max(0, Math.ceil((data.pairingCodeExpiresAt - Date.now()) / 60000)) : 0;
+      if (data?.pairingCode && minutes) message += " Code expires in " + minutes + " min.";
+      if (waStatus) waStatus.textContent = message;
+    }
+
+    function setWhatsappBusy(modal, busy, message) {
+      whatsappBusy = busy;
+      modal?.querySelectorAll("[data-whatsapp-action]").forEach(function (button) { button.disabled = busy; });
+      const progress = modal?.querySelector("[data-wa-progress]");
+      if (progress) progress.classList.toggle("hidden", !busy);
+      if (busy && message) {
+        const waStatus = modal?.querySelector("[data-wa-status]") || status;
+        if (waStatus) waStatus.textContent = message;
+      }
+    }
+
     function stopWhatsappPoll() {
       if (whatsappPoll) clearInterval(whatsappPoll);
       whatsappPoll = null;
     }
+
     function startWhatsappPoll(modal) {
       stopWhatsappPoll();
       whatsappPoll = setInterval(async function () {
         try {
           const data = await post("/api/whatsapp-connect", { action: "status", userId: panel.dataset.userId });
           applyWhatsappState(data, modal);
-          if (data.status === "connected" || data.status === "error") {
+          const state = whatsappState(data);
+          if (state === "CONNECTED") {
             stopWhatsappPoll();
-            if (data.status === "connected" && !data.isSimulated) setTimeout(function () { window.location.reload(); }, 1200);
+            setTimeout(function () { window.location.reload(); }, 1200);
+          } else if (state === "CONNECTION_FAILED" || state === "DISCONNECTED") {
+            stopWhatsappPoll();
           }
         } catch (error) {
           stopWhatsappPoll();
-          const waStatus = modal?.querySelector("[data-wa-status]") || status;
-          if (waStatus) waStatus.textContent = error.message;
+          applyWhatsappState({ error: error.message, status: "error" }, modal);
         }
-      }, 3000);
+      }, 2500);
     }
+
+    const whatsappModal = document.querySelector('[data-modal="whatsapp-modal"]');
+    document.querySelectorAll('[data-open-modal="whatsapp-modal"]').forEach(function (button) {
+      button.addEventListener("click", function () {
+        const codeBox = whatsappModal?.querySelector("[data-wa-code]");
+        const copyButton = whatsappModal?.querySelector("[data-wa-copy]");
+        const statePill = whatsappModal?.querySelector("[data-wa-state]");
+        const accountBox = whatsappModal?.querySelector("[data-wa-account]");
+        const waStatus = whatsappModal?.querySelector("[data-wa-status]");
+        const retryButton = whatsappModal?.querySelector('[data-whatsapp-action="retry"]');
+        if (codeBox) { codeBox.textContent = ""; codeBox.classList.add("hidden"); }
+        if (copyButton) copyButton.classList.add("hidden");
+        if (statePill) { statePill.textContent = "DISCONNECTED"; statePill.className = "wa-state"; }
+        if (accountBox) { accountBox.textContent = ""; accountBox.classList.add("hidden"); }
+        if (waStatus) waStatus.textContent = "";
+        if (retryButton) retryButton.classList.add("hidden");
+      });
+    });
+    whatsappModal?.querySelector("[data-close-modal]")?.addEventListener("click", stopWhatsappPoll);
+    whatsappModal?.querySelector("[data-wa-copy]")?.addEventListener("click", async function () {
+      const code = whatsappModal.querySelector("[data-wa-code]")?.textContent?.trim();
+      if (!code) return;
+      try {
+        if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(code);
+        else {
+          const helper = document.createElement("textarea");
+          helper.value = code;
+          helper.style.position = "fixed";
+          helper.style.opacity = "0";
+          document.body.appendChild(helper);
+          helper.select();
+          document.execCommand("copy");
+          helper.remove();
+        }
+        toast("Pairing code copied.");
+      } catch (error) {
+        toast("Could not copy the code. Select it manually.", "error");
+      }
+    });
+
     panel.querySelectorAll("[data-whatsapp-action]").forEach(function (button) {
       button.addEventListener("click", async function () {
+        if (whatsappBusy) return;
         const modal = button.closest(".modal");
-        const phone = modal?.querySelector("[data-wa-phone]")?.value || "";
-        const waStatus = modal?.querySelector("[data-wa-status]") || status;
-        const action = button.dataset.whatsappAction;
-        if (action === "connect" && !phone) {
-          if (waStatus) waStatus.textContent = "Phone number is required for connection.";
-          return;
+        const phoneValue = modal?.querySelector("[data-wa-phone]")?.value || "";
+        const requestedAction = button.dataset.whatsappAction;
+        const isRealConnect = requestedAction === "connect" || requestedAction === "retry";
+        const action = requestedAction === "retry" ? "connect" : requestedAction;
+        let payload = { action, userId: panel.dataset.userId };
+        if (isRealConnect) {
+          try {
+            payload.phoneNumber = normalizeWhatsappPhone(phoneValue);
+          } catch (error) {
+            applyWhatsappState({ error: error.message, status: "error" }, modal);
+            toast(error.message, "error");
+            return;
+          }
         }
         stopWhatsappPoll();
-        if (waStatus) waStatus.textContent = "Connecting...";
+        setWhatsappBusy(modal, true, isRealConnect ? "Initializing WhatsApp connection..." : requestedAction === "status" ? "Checking actual WhatsApp session..." : "Enabling simulated WhatsApp mode...");
         try {
-          const data = await post("/api/whatsapp-connect", {
-            action: action,
-            userId: panel.dataset.userId,
-            phoneNumber: phone || "+15550199"
-          });
+          const data = await post("/api/whatsapp-connect", payload);
           applyWhatsappState(data, modal);
-          toast(data.notice || "WhatsApp status: " + data.status);
-          if (data.status === "connected") setTimeout(function () { window.location.reload(); }, 1200);
-          else if (action === "connect") startWhatsappPoll(modal);
+          if (data?.error) toast(data.error, "error");
+          else if (data?.notice) toast(data.notice, "success");
+          if (data?.connected) {
+            stopWhatsappPoll();
+            setTimeout(function () { window.location.reload(); }, 1200);
+          } else if (isRealConnect && whatsappState(data) !== "CONNECTION_FAILED") {
+            startWhatsappPoll(modal);
+          }
         } catch (error) {
-          if (waStatus) waStatus.textContent = error.message;
+          applyWhatsappState({ error: error.message, status: "error" }, modal);
+          toast(error.message, "error");
+        } finally {
+          setWhatsappBusy(modal, false);
         }
       });
     });
