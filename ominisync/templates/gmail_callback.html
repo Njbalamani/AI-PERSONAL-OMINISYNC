@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Connecting Gmail | OmniSync.ai{% endblock %}
+{% block body_class %}center-page{% endblock %}
+{% block body %}
+<main class="center-card">
+  <img class="center-logo" src="/001-gmail.png" alt="Gmail">
+  {% if status == "loading" %}
+    <h1>Connecting Gmail Account</h1>
+    <p>Exchanging authorization details and syncing your workspace...</p>
+  {% elif status == "success" %}
+    <h1>Gmail Synced Successfully</h1>
+    <p>Your Gmail account is connected. Taking you back to integrations...</p>
+    <script>setTimeout(function(){window.location.replace('{{ redirect_url }}');},1500);</script>
+  {% else %}
+    <h1>Connection Failed</h1>
+    <p class="alert error">{{ error_message }}</p>
+    <a class="btn btn-primary" href="{{ redirect_url }}">Back to Integrations</a>
+  {% endif %}
+</main>
+{% endblock %}

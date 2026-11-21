@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}OmniSync - Offline{% endblock %}
+{% block body_class %}center-page{% endblock %}
+{% block body %}
+<main class="center-card">
+  <img class="center-logo" src="/icons/icon-192.png" alt="OmniSync">
+  <h1>You are offline</h1>
+  <p>OmniSync needs a connection to sync your assistant data. Reconnect and try again.</p>
+  <button class="btn btn-primary" type="button" onclick="location.replace('/')">Try again</button>
+</main>
+{% endblock %}

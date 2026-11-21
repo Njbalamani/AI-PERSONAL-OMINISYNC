@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{{ briefing.title|default:"Briefing not found" }} | OmniSync.ai{% endblock %}
+{% block body_class %}dashboard-page briefing-detail-page{% endblock %}
+{% block body %}
+<div class="dashboard-shell">
+  <aside class="sidebar" data-sidebar>
+    <a class="brand sidebar-brand" href="/"><span class="brand-mark">O</span><span class="sidebar-label">OmniSync.ai</span></a>
+    <nav class="side-nav">
+      <a href="{% url 'dashboard' %}"><span class="nav-icon">▦</span><span class="sidebar-label">Dashboard</span></a>
+      <a href="/dashboard?tab=briefing" class="active"><span class="nav-icon">▤</span><span class="sidebar-label">Briefing</span></a>
+      <a href="/dashboard?tab=alerts"><span class="nav-icon">△</span><span class="sidebar-label">Alerts</span></a>
+      <a href="/dashboard?tab=integrations"><span class="nav-icon">⌁</span><span class="sidebar-label">Integrations</span></a>
+    </nav>
+    <button class="sidebar-collapse" type="button" data-sidebar-collapse>⇤ <span class="sidebar-label">Collapse</span></button>
+  </aside>
+  <div class="dashboard-main">
+    <header class="dashboard-header"><div class="breadcrumb"><span>Briefing</span> / <b>{{ briefing.title|default:"Not found" }}</b></div><div class="header-tools"><a class="btn btn-ghost btn-small" href="/">Landing Page →</a></div></header>
+    <main class="dashboard-content">
+      {% if not_found %}
+      <section class="panel center-card"><h1>Briefing not found.</h1><a class="btn btn-primary" href="/dashboard?tab=briefing">← Go Back</a></section>
+      {% else %}
+      {{ briefing|json_script:"briefing-data" }}
+      {{ user_id|json_script:"briefing-user-id" }}
+      <section class="panel" data-briefing-detail data-category="{{ category }}">
+        <div class="panel-head"><div><a href="/dashboard?tab=briefing">← Go Back</a><h1>{{ briefing.title }}</h1><p>{{ briefing.summary }}</p></div><span class="pill">{{ briefing.created_at }}</span></div>
+        <nav class="category-tabs" aria-label="Briefing categories">
+          {% for item in categories %}<a href="/dashboard/briefing/{{ briefing.id }}?category={{ item.key }}" class="{% if category == item.key %}active{% endif %}">{{ item.label }}</a>{% endfor %}
+        </nav>
+        <div class="briefing-stats">
+          {% for key, value in briefing.stats.items %}<div class="stat-card"><span>{{ key }}</span><strong>{{ value }}</strong></div>{% endfor %}
+        </div>
+        <div class="briefing-items">
+          {% if category == 'email' %}
+            {% for item in briefing.data.email %}<article class="item-row"><img class="item-logo" src="{{ app_logos.gmail }}" alt=""><div><b>{{ item.subject|default:item.from|default:"Email" }}</b><p>{{ item.snippet|default:item.body }}</p><small>{{ item.from }} · {{ item.time }}</small></div><button class="btn btn-primary btn-small" type="button" data-compose-item="email" data-item-index="{{ forloop.counter0 }}">Reply</button></article>{% empty %}<p class="empty">Nothing in this category for this briefing.</p>{% endfor %}
+          {% elif category == 'messages' %}
+            {% for item in briefing.data.messages %}<article class="item-row"><img class="item-logo" src="{{ app_logos.whatsapp }}" alt=""><div><b>{{ item.from|default:"Message" }}</b><p>{{ item.snippet|default:item.body }}</p><small>{{ item.time }}</small></div><button class="btn btn-primary btn-small" type="button" data-compose-item="message" data-item-index="{{ forloop.counter0 }}">Reply</button></article>{% empty %}<p class="empty">Nothing in this category for this briefing.</p>{% endfor %}
+          {% elif category == 'mentions' %}
+            {% for item in briefing.data.mentions %}<article class="item-row"><div><b>{{ item.title|default:item.from|default:"Mention" }}</b><p>{{ item.snippet|default:item.body|default:item.text }}</p></div></article>{% empty %}<p class="empty">Nothing in this category for this briefing.</p>{% endfor %}
+          {% elif category == 'tasks' %}
+            {% for item in briefing.data.tasks %}<article class="item-row"><div><b>{{ item.title|default:item.task|default:"Task" }}</b><p>{{ item.description|default:item.body|default:item.snippet }}</p></div></article>{% empty %}<p class="empty">Nothing in this category for this briefing.</p>{% endfor %}
+          {% elif category == 'follow_ups' %}
+            {% for item in briefing.data.follow_ups %}<article class="item-row"><div><b>{{ item.title|default:item.from|default:"Follow-up" }}</b><p>{{ item.description|default:item.body|default:item.snippet }}</p></div></article>{% empty %}<p class="empty">Nothing in this category for this briefing.</p>{% endfor %}
+          {% endif %}
+        </div>
+      </section>
+      <section class="panel compose-panel hidden" data-compose-panel>
+        <div class="panel-head"><div><h2 data-compose-title>Compose Email Reply</h2><p>Replying to: <span data-compose-reply-to></span></p></div><button class="icon-btn" type="button" data-compose-close>×</button></div>
+        <form data-compose-form>
+          <label>To<input name="to" data-compose-to></label>
+          <label class="compose-subject hidden">Subject<input name="subject" data-compose-subject></label>
+          <label>Message<textarea name="body" rows="8" placeholder="Write your reply, or click 'Draft with AI' to get a suggestion..."></textarea></label>
+          <div class="panel-actions"><button class="btn btn-secondary" type="button" data-compose-ai>Draft with AI</button><button class="btn btn-primary" type="submit" data-compose-send>Send Email</button></div>
+          <div class="form-status" data-compose-status></div>
+        </form>
+      </section>
+      {% endif %}
+    </main>
+  </div>
+</div>
+{% endblock %}

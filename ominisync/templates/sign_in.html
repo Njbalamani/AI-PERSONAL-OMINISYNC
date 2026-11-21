@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Sign In | OmniSync.ai{% endblock %}
+{% block body_class %}auth-page{% endblock %}
+{% block body %}
+<main class="auth-shell">
+  <a class="auth-back" href="/">← Back to OmniSync</a>
+  <section class="auth-card">
+    <div class="auth-head">
+      <div class="brand-mark">O</div>
+      <h1>Welcome Back</h1>
+      <p>Sign in to access your chief-of-staff AI personal assistant.</p>
+    </div>
+    {% if messages %}{% for message in messages %}<div class="alert error">{{ message }}</div>{% endfor %}{% endif %}
+    <div class="auth-tabs" role="tablist">
+      <button type="button" class="auth-tab active" data-auth-tab="credentials">Email / Google</button>
+      <button type="button" class="auth-tab" data-auth-tab="phone">Phone OTP</button>
+    </div>
+    <div class="auth-panel" data-auth-panel="credentials">
+      <a class="btn btn-google" href="{% url 'google-sign-in' %}">Continue with Google</a>
+      {% if not google_configured %}<div class="alert warning">Google sign-in needs GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in the project .env file. Authorize {{ google_signin_redirect_uri }} in Google Cloud Console, then restart the server.</div>{% endif %}
+      <div class="or-line"><span>or credentials</span></div>
+      <form method="post" data-email-auth-form>
+        {% csrf_token %}
+        <label>Email Address<input type="email" name="email" autocomplete="email" required></label>
+        <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+        <button class="btn btn-primary btn-block" type="submit">Sign In</button>
+      </form>
+    </div>
+    <div class="auth-panel hidden" data-auth-panel="phone">
+      <form data-phone-send-form>
+        <label>Phone Number<input type="tel" name="phoneNumber" placeholder="+1 234 567 8900" required></label>
+        <small>Include country code, e.g. +1 for US</small>
+        <div class="field-label">Verification Method</div>
+        <div class="choice-row">
+          <label class="choice"><input type="radio" name="method" value="sms" checked> SMS</label>
+          <label class="choice"><input type="radio" name="method" value="whatsapp"> WhatsApp</label>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit" data-otp-send-label>Send OTP via SMS</button>
+      </form>
+      <form class="hidden" data-phone-verify-form>
+        <label>Enter 6-Digit Code<input type="text" name="otp" inputmode="numeric" maxlength="6" placeholder="000000" required></label>
+        <div class="dev-otp hidden" data-dev-otp></div>
+        <button class="btn btn-primary btn-block" type="submit">Verify &amp; Sign In</button>
+        <button class="btn btn-link btn-block" type="button" data-phone-change>← Change number or resend</button>
+      </form>
+    </div>
+    <div class="auth-error" data-auth-error></div>
+    <div class="auth-footer">New to OmniSync? <a href="{% url 'sign-up' %}">Create Account</a></div>
+  </section>
+</main>
+{% endblock %}

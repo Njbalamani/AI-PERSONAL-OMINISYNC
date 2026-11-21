@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+{% block title %}{{ tab_title }} | OmniSync.ai{% endblock %}
+{% block body_class %}dashboard-page{% endblock %}
+{% block body %}
+<div class="dashboard-shell">
+  <aside class="sidebar" data-sidebar>
+    <a class="brand sidebar-brand" href="/"><span class="brand-mark">O</span><span class="sidebar-label">OmniSync.ai</span></a>
+    <nav class="side-nav" aria-label="Dashboard navigation">
+      <a href="{% url 'dashboard' %}" class="{% if active_tab == 'dashboard' %}active{% endif %}"><span class="nav-icon">▦</span><span class="sidebar-label">Dashboard</span></a>
+      <a href="/dashboard?tab=ai-agent" class="{% if active_tab == 'ai-agent' %}active{% endif %}"><span class="nav-icon">✦</span><span class="sidebar-label">AI Agent</span></a>
+      <a href="/dashboard?tab=briefing" class="{% if active_tab == 'briefing' %}active{% endif %}"><span class="nav-icon">▤</span><span class="sidebar-label">Briefing</span></a>
+      <a href="/dashboard?tab=integrations" class="{% if active_tab == 'integrations' %}active{% endif %}"><span class="nav-icon">⌁</span><span class="sidebar-label">Integrations</span></a>
+      <a href="/dashboard?tab=alerts" class="{% if active_tab == 'alerts' %}active{% endif %}"><span class="nav-icon">△</span><span class="sidebar-label">Alerts</span></a>
+      <a href="/dashboard?tab=settings" class="{% if active_tab == 'settings' %}active{% endif %}"><span class="nav-icon">⚙</span><span class="sidebar-label">Settings</span></a>
+      <a href="/dashboard?tab=pricing" class="{% if active_tab == 'pricing' %}active{% endif %}"><span class="nav-icon">◇</span><span class="sidebar-label">Pricing Settings</span></a>
+    </nav>
+    <button class="sidebar-collapse" type="button" data-sidebar-collapse>⇤ <span class="sidebar-label">Collapse</span></button>
+  </aside>
+
+  <div class="dashboard-main">
+    <header class="dashboard-header">
+      <button class="icon-btn mobile-menu-btn" type="button" data-dashboard-menu aria-label="Open menu">☰</button>
+      <div class="breadcrumb"><span>Workspace</span> / <b>{{ tab_title }}</b></div>
+      <div class="header-tools">
+        <button class="icon-btn" type="button" data-theme-toggle aria-label="Switch theme">☾</button>
+        <a class="btn btn-ghost btn-small" href="/">Landing Page →</a>
+        <button class="btn btn-secondary btn-small" type="button" data-sync-live>Sync Live</button>
+        <div class="avatar" title="{{ profile.display_name }}">{{ profile.display_name|slice:":1"|upper }}</div>
+      </div>
+    </header>
+
+    <main class="dashboard-content">
+      {% if active_tab == "dashboard" %}
+      <section class="panel" data-overview-panel data-user-id="{{ user_id }}">
+        <div class="panel-head">
+          <div><h1>Today's Brief</h1><p>Personalized intelligence from your connected apps.</p></div>
+          <div class="panel-actions"><span class="status-dot">Agent Active</span><button class="btn btn-secondary btn-small" type="button" data-refresh-brief>Refresh</button></div>
+        </div>
+        {% if brief.isSimulated %}<div class="alert warning">{{ brief.warn|default:"GEMINI_API_KEY env var missing. Running in simulated fallback mode." }}</div>{% endif %}
+        <div class="stat-grid">
+          <article class="stat-card"><span>Important</span><strong>{{ brief.stats.importantCount }}</strong><small>Items needing attention</small></article>
+          <article class="stat-card"><span>Schedule</span><strong>{{ brief.stats.priorityCount }}</strong><small>Priority commitments</small></article>
+          <article class="stat-card"><span>Follow-Ups</span><strong>{{ brief.stats.followUpCount }}</strong><small>Open conversations</small></article>
+        </div>
+        <div class="two-col">
+          <article class="panel inner-panel">
+            <div class="panel-head"><div><h2>Connected Apps</h2><p>Synced sources for this brief</p></div></div>
+            <div class="app-list">
+              <div class="app-row"><img src="/001-gmail.png" alt="">Gmail <span class="pill {% if gmail_connected %}success{% else %}muted{% endif %}">{% if gmail_connected %}Connected{% else %}Disconnected{% endif %}</span></div>
+              <div class="app-row"><img src="/002-whatsapp.png" alt="">WhatsApp <span class="pill {% if whatsapp_connected %}success{% else %}muted{% endif %}">{% if whatsapp_connected %}Connected{% else %}Disconnected{% endif %}</span></div>
+            </div>
+          </article>
+          <article class="panel inner-panel">
+            <div class="panel-head"><div><h2>Priority Items</h2><p>What deserves your attention first</p></div><a href="/dashboard?tab=alerts">View all</a></div>
+            <div class="item-list">
+              {% for item in brief.priorityItems %}
+              <div class="item-row"><span class="app-chip">{{ item.app }}</span><div><b>{{ item.title }}</b><p>{{ item.description }}</p></div><small>{{ item.time }}</small></div>
+              {% empty %}<p class="empty">No priority items right now.</p>{% endfor %}
+            </div>
+          </article>
+        </div>
+        <article class="panel inner-panel">
+          <div class="panel-head"><div><h2>Brief Digest</h2><p>Generated {{ brief.generatedAt }}</p></div><a href="/dashboard?tab=briefing">View all</a></div>
+          <div class="digest-grid">
+            {% for item in brief.brief %}
+            <article class="digest-card"><div class="digest-top"><span>{{ item.type }}</span><small>{{ item.time }}</small></div><h3>{{ item.title }}</h3><p>{{ item.summary }}</p><button class="btn btn-link" type="button" data-brief-action="{{ item.action }}">{{ item.action }}</button></article>
+            {% empty %}<p class="empty">No digest items.</p>{% endfor %}
+          </div>
+        </article>
+        <a class="btn btn-primary" href="/dashboard?tab=alerts">View all alerts</a>
+      </section>
+
+      {% elif active_tab == "ai-agent" %}
+      <section class="panel chat-panel" data-user-id="{{ user_id }}">
+        <div class="panel-head">
+          <div><h1>OmniSync Intelligent Agent</h1><p>Connected to Gmail &amp; WhatsApp</p></div>
+          <button class="btn btn-secondary btn-small" type="button" data-chat-new>New Chat</button>
+        </div>
+        <div class="suggestion-row">
+          <button type="button" data-chat-suggestion>Summarize my emails from today</button>
+          <button type="button" data-chat-suggestion>Check pending WhatsApp messages</button>
+          <button type="button" data-chat-suggestion>Draft a reply to Sarah's email</button>
+          <button type="button" data-chat-suggestion>What are my priority action items?</button>
+        </div>
+        <div class="chat-messages" data-chat-messages>
+          {% for message in chat_messages %}
+          <div class="chat-bubble {{ message.sender }}"><b>{% if message.sender == 'user' %}You{% else %}OmniSync{% endif %}</b><p>{{ message.text|linebreaksbr }}</p></div>
+          {% empty %}
+          <div class="chat-bubble agent"><b>OmniSync</b><p>Hello! Ask me anything about your connected Gmail and WhatsApp activity.</p></div>
+          {% endfor %}
+        </div>
+        <form class="chat-compose" data-chat-form>
+          <input type="text" name="prompt" placeholder="Ask AI Agent to check alerts, draft emails, or search chat logs..." required>
+          <button class="btn btn-primary" type="submit">Send ↑</button>
+        </form>
+        <div class="form-status" data-chat-status></div>
+      </section>
+
+      {% elif active_tab == "briefing" %}
+      <section class="panel" data-briefing-panel data-user-id="{{ user_id }}">
+        <div class="panel-head"><div><h1>Briefing</h1><p>AI-generated daily digests and custom schedules.</p></div><button class="btn btn-primary" type="button" data-open-modal="briefing-modal">Create Custom Briefing</button></div>
+        <div class="panel-actions"><button class="btn btn-secondary" type="button" data-regenerate-briefing>Generate New Briefing</button><span data-briefing-status></span></div>
+        {% if not gmail_connected and not whatsapp_connected %}<div class="alert warning">Connect a source first. <a href="/dashboard?tab=integrations">Connect from Integrations</a></div>{% endif %}
+        <h2>Latest Briefings</h2>
+        <div class="item-list">
+          {% for item in briefings %}
+          <article class="item-row briefing-row"><div><b><a href="/dashboard/briefing/{{ item.id }}">{{ item.title }}</a></b><p>{{ item.summary }}</p><small>{{ item.created_at }}</small></div><span class="pill">{{ item.stats.messages|default:0 }} messages</span></article>
+          {% empty %}<p class="empty">No briefings yet. Generate one to get started.</p>{% endfor %}
+        </div>
+        <h2>Custom Schedules</h2>
+        <div class="item-list">
+          {% for item in schedules %}
+          <article class="item-row"><div><b>{{ item.name }}</b><p>{{ item.description }}</p><small>{{ item.frequency }} at {{ item.scheduledTime }} · next {{ item.next_run_at }}</small></div><button class="btn btn-danger btn-small" type="button" data-delete-schedule="{{ item.id }}">Delete</button></article>
+          {% empty %}<p class="empty">No custom schedules.</p>{% endfor %}
+        </div>
+      </section>
+
+      {% elif active_tab == "inbox" or active_tab == "follow-ups" or active_tab == "alerts" %}
+      <section class="panel alerts-panel" data-alerts-panel data-user-id="{{ user_id }}">
+        <div class="panel-head">
+          <div><h1>{% if active_tab == 'inbox' %}Inbox &amp; Synced Chats{% elif active_tab == 'follow-ups' %}Follow-Ups Tracker{% else %}Alerts{% endif %}</h1><p>Important alerts from your connected apps, monitored in the background by Trigger.dev.</p></div>
+          <div class="panel-actions"><button class="btn btn-secondary" type="button" data-alert-scan>Run AI Scan</button><button class="btn btn-primary" type="button" data-open-modal="alert-modal">Create New Alert</button></div>
+        </div>
+        <div class="stat-grid">
+          <article class="stat-card"><span>Active Alerts</span><strong data-alert-count>{{ alerts|length }}</strong><small>Currently tracked</small></article>
+          <article class="stat-card"><span>Triggered Today</span><strong data-triggered-count>{{ alerts|length }}</strong><small>Needs review</small></article>
+          <article class="stat-card"><span>High Priority Alerts</span><strong data-high-count>0</strong><small>Escalated items</small></article>
+          <article class="stat-card"><span>Resolved Alerts</span><strong data-resolved-count>0</strong><small>Cleared today</small></article>
+        </div>
+        <div class="two-col">
+          <article class="panel inner-panel">
+            <div class="panel-head"><div><h2>Recent Alerts Timeline</h2><p>Latest activity that needs a decision</p></div><a href="/dashboard?tab=alerts">View all</a></div>
+            <div class="item-list" data-alert-list>
+              {% for alert in alerts %}
+              <article class="alert-item" data-alert-row="{{ alert.id }}">
+                <img src="{{ alert.app_logo }}" alt="">
+                <div class="alert-body"><b>{{ alert.title }}</b><p>{{ alert.description }}</p><small>{{ alert.source_app }} · {{ alert.priority }} · {{ alert.triggered_at }}</small>
+                  <div class="alert-actions">
+                    <button class="btn btn-mini" type="button" data-alert-ai="summary" data-alert-id="{{ alert.id }}">AI Summary</button>
+                    <button class="btn btn-mini" type="button" data-alert-ai="next_action" data-alert-id="{{ alert.id }}">AI Suggested Action</button>
+                    <button class="btn btn-mini" type="button" data-alert-ai="reply" data-alert-id="{{ alert.id }}">Draft Reply</button>
+                    <button class="btn btn-mini" type="button" data-alert-action="snoozed" data-alert-id="{{ alert.id }}">Snooze</button>
+                    <button class="btn btn-mini" type="button" data-alert-action="task" data-alert-id="{{ alert.id }}">Task</button>
+                    <button class="btn btn-mini" type="button" data-alert-action="follow_up" data-alert-id="{{ alert.id }}">Follow-up</button>
+                    <button class="btn btn-mini" type="button" data-alert-action="resolved" data-alert-id="{{ alert.id }}">Resolve</button>
+                  </div>
+                  <div class="ai-result" data-ai-result="{{ alert.id }}"></div>
+                </div>
+              </article>
+              {% empty %}<p class="empty">No alerts yet. Run an AI scan to find items that need attention.</p>{% endfor %}
+            </div>
+            <div class="form-status" data-scan-message></div>
+          </article>
+          <article class="panel inner-panel">
+            <div class="panel-head"><div><h2>AI Suggested Alerts</h2><p>Rules suggested from your connected activity</p></div></div>
+            <div class="item-list" data-suggestion-list><p class="empty">Loading suggestions...</p></div>
+          </article>
+        </div>
+      </section>
+
+      {% elif active_tab == "integrations" %}
+      <section class="panel integrations-panel" data-user-id="{{ user_id }}">
+        <div class="panel-head"><div><h1>Cognitive Workspace Integrations</h1><p>Control which apps OmniSync can monitor and act on.</p></div></div>
+        <div class="card-grid three integration-grid">
+          <article class="integration-card">
+            <img src="/001-gmail.png" alt=""><h2>Gmail</h2><p>Read, summarize, draft, and send email.</p>
+            <span class="pill {% if gmail_connected %}success{% else %}muted{% endif %}">{% if gmail_simulated %}Connected (simulated){% elif gmail_connected %}Connected (Google){% else %}Disconnected{% endif %}</span>
+            <div class="integration-actions">
+              {% if gmail_connected %}<button class="btn btn-danger btn-small" type="button" data-disconnect="gmail">Disconnect</button>{% else %}<button class="btn btn-primary btn-small" type="button" data-connect-gmail>Connect Integration</button>{% endif %}
+              <button class="btn btn-secondary btn-small" type="button" data-open-modal="tools-modal" data-tools="gmail">Settings</button>
+            </div>
+          </article>
+          <article class="integration-card">
+            <img src="/002-whatsapp.png" alt=""><h2>WhatsApp</h2><p>Summarize chats, track follow-ups, and send messages.</p>
+            <span class="pill {% if whatsapp_connected %}success{% else %}muted{% endif %}">{% if whatsapp_connected %}Connected{% else %}Disconnected{% endif %}</span>
+            <div class="integration-actions">
+              {% if whatsapp_connected %}<button class="btn btn-danger btn-small" type="button" data-disconnect="whatsapp">Disconnect</button>{% else %}<button class="btn btn-primary btn-small" type="button" data-open-modal="whatsapp-modal">Connect Integration</button>{% endif %}
+              <button class="btn btn-secondary btn-small" type="button" data-open-modal="tools-modal" data-tools="whatsapp">Settings</button>
+            </div>
+          </article>
+          <article class="integration-card muted-card"><img src="/005-slack.png" alt=""><h2>Slack</h2><p>Coming soon</p><span class="pill muted">Available on Professional</span></article>
+          <article class="integration-card muted-card"><img src="/003-email.png" alt=""><h2>Outlook Calendar</h2><p>Coming soon</p><span class="pill muted">Available on Professional</span></article>
+          <article class="integration-card muted-card"><img src="/006-discord.png" alt=""><h2>Discord</h2><p>Coming soon</p><span class="pill muted">Available on Professional</span></article>
+          <article class="integration-card muted-card"><img src="/007-linkedin.png" alt=""><h2>LinkedIn</h2><p>Coming soon</p><span class="pill muted">Available on Professional</span></article>
+          <article class="integration-card muted-card"><img src="/004-telegram.png" alt=""><h2>Telegram</h2><p>Coming soon</p><span class="pill muted">Available on Professional</span></article>
+          <article class="integration-card muted-card"><div class="feature-icon">＋</div><h2>Other Platforms</h2><p>Request a new connector</p><span class="pill muted">Roadmap</span></article>
+        </div>
+        <div class="form-status" data-integration-status></div>
+      </section>
+
+      {% elif active_tab == "settings" %}
+      <section class="panel" data-settings-panel data-user-id="{{ user_id }}">
+        <div class="panel-head"><div><h1>Settings</h1><p>Tune how OmniSync thinks, briefs, alerts, and protects your data.</p></div><button class="btn btn-primary" type="button" data-settings-save>Save Settings</button></div>
+        <form data-settings-form class="settings-grid">
+          <fieldset><legend>Account Profile</legend><label>Name<input name="name" value="{{ profile.display_name }}"></label><label>Email<input value="{{ user.email }}" disabled></label></fieldset>
+          <fieldset><legend>AI Agent Behavior</legend>
+            <label>Role Context<textarea name="roleContext">{{ assistant_settings.roleContext }}</textarea></label>
+            <label>Detail Level<select name="detailLevel"><option value="concise" {% if assistant_settings.detailLevel == 'concise' %}selected{% endif %}>Concise</option><option value="standard" {% if assistant_settings.detailLevel == 'standard' %}selected{% endif %}>Standard</option><option value="detailed" {% if assistant_settings.detailLevel == 'detailed' %}selected{% endif %}>Detailed</option></select></label>
+            <label>Response Tone<select name="responseTone"><option value="friendly" {% if assistant_settings.responseTone == 'friendly' %}selected{% endif %}>Friendly</option><option value="formal" {% if assistant_settings.responseTone == 'formal' %}selected{% endif %}>Formal</option><option value="direct" {% if assistant_settings.responseTone == 'direct' %}selected{% endif %}>Direct</option></select></label>
+            <label class="toggle"><input type="checkbox" name="autoDraftReplies" {% if assistant_settings.autoDraftReplies %}checked{% endif %}> Auto-draft replies</label>
+            <label class="toggle"><input type="checkbox" name="proactiveSuggestions" {% if assistant_settings.proactiveSuggestions %}checked{% endif %}> Proactive suggestions</label>
+          </fieldset>
+          <fieldset><legend>Briefings</legend>
+            <label>Briefing Cadence<select name="briefingCadence"><option value="morning" {% if assistant_settings.briefingCadence == 'morning' %}selected{% endif %}>Morning</option><option value="evening" {% if assistant_settings.briefingCadence == 'evening' %}selected{% endif %}>Evening</option></select></label>
+            <label>Sync Frequency<select name="syncFrequency"><option value="real_time" {% if assistant_settings.syncFrequency == 'real_time' %}selected{% endif %}>Real time</option><option value="hourly" {% if assistant_settings.syncFrequency == 'hourly' %}selected{% endif %}>Hourly</option><option value="daily" {% if assistant_settings.syncFrequency == 'daily' %}selected{% endif %}>Daily</option></select></label>
+          </fieldset>
+          <fieldset><legend>Alerts &amp; Notifications</legend>
+            <label>Alert Priority<select name="alertPriority"><option value="medium_high" {% if assistant_settings.alertPriority == 'medium_high' %}selected{% endif %}>Medium &amp; high</option><option value="high" {% if assistant_settings.alertPriority == 'high' %}selected{% endif %}>High only</option><option value="all" {% if assistant_settings.alertPriority == 'all' %}selected{% endif %}>All</option></select></label>
+            <label class="toggle"><input type="checkbox" name="inAppAlerts" checked> In-app alerts</label>
+          </fieldset>
+          <fieldset><legend>Privacy &amp; Data</legend>
+            <label>Data Retention<select name="dataRetention"><option value="90_days" {% if assistant_settings.dataRetention == '90_days' %}selected{% endif %}>90 days</option><option value="1_year">1 year</option></select></label>
+            <label class="toggle"><input type="checkbox" name="saveAiMemory" {% if assistant_settings.saveAiMemory %}checked{% endif %}> Save AI memory</label>
+            <label class="toggle"><input type="checkbox" name="shareUsageAnalytics" {% if assistant_settings.shareUsageAnalytics %}checked{% endif %}> Share usage analytics</label>
+          </fieldset>
+          <fieldset><legend>Appearance</legend><button class="btn btn-secondary" type="button" data-theme-toggle>Switch theme</button></fieldset>
+          <fieldset><legend>Connected Apps</legend><a class="btn btn-secondary" href="/dashboard?tab=integrations">Manage integrations</a></fieldset>
+          <fieldset><legend>Security</legend><a class="btn btn-secondary" href="{% url 'pair' %}">Billing Settings</a> <a class="btn btn-secondary" href="{% url 'sign-out' %}">Sign Out</a></fieldset>
+        </form>
+        <div class="panel-actions"><button class="btn btn-secondary" type="button" data-settings-reset>Reset</button><button class="btn btn-secondary" type="button" data-settings-export>Export Settings</button><span data-settings-status></span></div>
+      </section>
+
+      {% elif active_tab == "pricing" %}
+      <section class="panel">
+        <div class="panel-head"><div><h1>Pricing Settings</h1><p>Manage your OmniSync subscription.</p></div><a class="btn btn-secondary" href="/dashboard?tab=integrations">Integrations</a></div>
+        <div class="card-grid three pricing-grid">
+          <article class="price-card"><h2>Starter</h2><div class="price">$0</div><p>Essential reminder syncing for personal use.</p><a class="btn btn-secondary" href="/#pricing">Current Subscription</a></article>
+          <article class="price-card featured"><span class="popular-badge">Popular</span><h2>Premium Pro</h2><div class="price">$29</div><p>Unlimited digests, replies, and connected accounts.</p><a class="btn btn-primary" href="/#pricing">Upgrade Plan</a></article>
+          <article class="price-card"><h2>Enterprise</h2><div class="price">Custom</div><p>Private deployment, SSO, and custom SLAs.</p><a class="btn btn-secondary" href="mailto:sales@omnisync.ai">Contact Sales</a></article>
+        </div>
+      </section>
+      {% endif %}
+    </main>
+  </div>
+</div>
+
+<div class="modal hidden" data-modal="briefing-modal">
+  <div class="modal-card">
+    <div class="panel-head"><h2>Create Custom Briefing</h2><button class="icon-btn" type="button" data-close-modal>×</button></div>
+    <form data-schedule-form>
+      <label>Briefing Name *<input name="name" required></label>
+      <label>Description<textarea name="description"></textarea></label>
+      <div class="field-label">Apps</div>
+      <div class="choice-row"><label class="choice"><input type="checkbox" name="apps" value="gmail" {% if not gmail_connected %}disabled{% endif %}> Gmail</label><label class="choice"><input type="checkbox" name="apps" value="whatsapp" {% if not whatsapp_connected %}disabled{% endif %}> WhatsApp</label></div>
+      <div class="field-label">Categories</div>
+      <div class="choice-row">{% for category in categories %}<label class="choice"><input type="checkbox" name="categories" value="{{ category }}" checked> {{ category }}</label>{% endfor %}</div>
+      <label>Scheduled Time *<input type="time" name="scheduledTime" value="09:00" required></label>
+      <label>Frequency *<select name="frequency"><option value="daily">Daily</option><option value="hourly">Hourly</option><option value="weekly">Weekly</option></select></label>
+      <label>Priority Level *<select name="priorityLevel"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></label>
+      <button class="btn btn-primary btn-block" type="submit">Create Briefing</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal hidden" data-modal="alert-modal">
+  <div class="modal-card">
+    <div class="panel-head"><h2>Create New Alert</h2><button class="icon-btn" type="button" data-close-modal>×</button></div>
+    <form data-alert-rule-form>
+      <label>Name *<input name="name" required></label>
+      <label>Description<textarea name="description"></textarea></label>
+      <div class="field-label">Apps</div>
+      <div class="choice-row"><label class="choice"><input type="checkbox" name="apps" value="gmail" {% if not gmail_connected %}disabled{% endif %}> Gmail</label><label class="choice"><input type="checkbox" name="apps" value="whatsapp" {% if not whatsapp_connected %}disabled{% endif %}> WhatsApp</label></div>
+      <label>Condition *<textarea name="condition" required></textarea></label>
+      <label>Priority<select name="priority"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></label>
+      <label>Notification Method<select name="notificationMethod"><option value="in_app">In app</option><option value="email">Email</option></select></label>
+      <label>Frequency<select name="frequency"><option value="real_time">Real time</option><option value="15_minutes">Every 15 minutes</option><option value="hourly">Hourly</option><option value="daily">Daily</option></select></label>
+      <label>Action<select name="action"><option value="notify">Notify</option><option value="draft_reply">Draft reply</option><option value="create_task">Create task</option><option value="mark_follow_up">Mark follow-up</option></select></label>
+      <button class="btn btn-primary btn-block" type="submit">Create Alert Rule</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal hidden" data-modal="whatsapp-modal">
+  <div class="modal-card">
+    <div class="panel-head"><h2>Connect WhatsApp Account</h2><button class="icon-btn" type="button" data-close-modal>×</button></div>
+    <ol><li>Open WhatsApp on your mobile device.</li><li>Go to Settings &gt; Linked Devices &gt; Link a Device.</li><li>Select Link with phone number instead and enter the pairing code below.</li></ol>
+    <label>Phone Number<input type="tel" name="phoneNumber" data-wa-phone placeholder="+919876543210"></label>
+    <div class="pairing-code hidden" data-wa-code></div>
+    <div class="pair-status" data-wa-status></div>
+    <div class="panel-actions"><button class="btn btn-primary" type="button" data-whatsapp-action="connect">Connect</button><button class="btn btn-secondary" type="button" data-whatsapp-action="connect-simulated">Use Simulated Mode</button><button class="btn btn-secondary" type="button" data-whatsapp-action="status">Check Status</button></div>
+  </div>
+</div>
+
+<div class="modal hidden" data-modal="tools-modal">
+  <div class="modal-card">
+    <div class="panel-head"><h2 data-tools-title>Available Tools</h2><button class="icon-btn" type="button" data-close-modal>×</button></div>
+    <div data-tools-list></div>
+  </div>
+</div>
+
+<div class="modal hidden" data-modal="gmail-setup-modal">
+  <div class="modal-card">
+    <div class="panel-head"><h2>Gmail Setup Required</h2><button class="icon-btn" type="button" data-close-modal>×</button></div>
+    <p>Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in the server environment to enable live Gmail OAuth with your real Gmail account.</p>
+    <div class="integration-actions">
+      <button class="btn btn-primary btn-small" type="button" data-gmail-simulate>Use Simulated Mode</button>
+      <button class="btn btn-secondary btn-small" type="button" data-close-modal>Cancel</button>
+    </div>
+  </div>
+</div>
+{% endblock %}

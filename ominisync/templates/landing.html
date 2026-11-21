@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block title %}OmniSync.ai | Connected AI Personal Assistant &amp; Chief of Staff{% endblock %}
+{% block body_class %}landing-page{% endblock %}
+{% block body %}
+<header class="site-header" id="site-header">
+  <div class="container nav-wrap">
+    <a class="brand" href="/" aria-label="OmniSync.ai home">
+      <span class="brand-mark">O</span>
+      <span>OmniSync.ai</span>
+    </a>
+    <nav class="desktop-nav" aria-label="Main navigation">
+      <a href="#features">Features</a>
+      <a href="#playground">Simulator</a>
+      <a href="#workflow">How it Works</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="header-actions">
+      {% if user.is_authenticated %}
+        <a class="btn btn-primary" href="{% url 'dashboard' %}">Dashboard</a>
+      {% else %}
+        <a class="btn btn-ghost" href="{% url 'sign-in' %}">Sign In</a>
+        <a class="btn btn-primary" href="{% url 'sign-up' %}">Get Started</a>
+      {% endif %}
+      <button class="icon-btn mobile-menu-btn" type="button" data-mobile-menu aria-label="Open menu">☰</button>
+    </div>
+  </div>
+  <nav class="mobile-nav" data-mobile-nav aria-label="Mobile navigation">
+    <a href="#features">Features</a>
+    <a href="#playground">Simulator</a>
+    <a href="#workflow">How it Works</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#faq">FAQ</a>
+    {% if not user.is_authenticated %}<a href="{% url 'sign-in' %}">Sign In</a>{% endif %}
+  </nav>
+</header>
+
+<main>
+  <section class="hero section">
+    <div class="container hero-grid">
+      <div class="hero-copy animate-float">
+        <div class="eyebrow">Introducing OmniSync 1.0</div>
+        <h1>Integrate Gmail, WhatsApp, Telegram, Outlook<br><span class="gradient-text">Your AI Chief of Staff.</span><br>Connected to your conversations.</h1>
+        <p class="lead">One intelligent workspace that reads, understands, and acts across every conversation so you never miss what matters.</p>
+        <div class="hero-actions">
+          {% if user.is_authenticated %}
+            <a class="btn btn-primary btn-lg" href="{% url 'dashboard' %}">Go to Dashboard</a>
+          {% else %}
+            <a class="btn btn-primary btn-lg" href="{% url 'sign-up' %}">Start Free Trial</a>
+          {% endif %}
+          <a class="btn btn-secondary btn-lg" href="#playground">Interactive Demo</a>
+        </div>
+        <div class="trust-metrics">
+          <div><strong>100k+</strong><span>Digests Processed</span></div>
+          <div><strong>98.4%</strong><span>Accuracy Rating</span></div>
+          <div><strong>&lt; 1.2s</strong><span>Latency Speed</span></div>
+          <div><strong>AES-256</strong><span>E2E Encryption</span></div>
+        </div>
+      </div>
+      <div class="hero-mock animate-float-delayed">
+        <div class="browser-bar"><span></span><span></span><span></span><b>omnisync.ai/dashboard/overview</b></div>
+        <div class="mock-shell">
+          <aside class="mock-sidebar">
+            <div class="mock-label">Connected Accounts</div>
+            <div class="mock-row"><img src="/001-gmail.png" alt="">Gmail <em>Syncing</em></div>
+            <div class="mock-row"><img src="/002-whatsapp.png" alt="">WhatsApp <em>Syncing</em></div>
+            <div class="mock-row"><img src="/004-telegram.png" alt="">Telegram <em>Syncing</em></div>
+            <div class="mock-row"><img src="/003-email.png" alt="">Outlook <em>Paused</em></div>
+            <div class="mock-label">Active Agent Tasks</div>
+            <div class="mock-task">Summarizing Slack logs</div>
+            <div class="mock-task">Drafting client updates</div>
+          </aside>
+          <div class="mock-content">
+            <div class="mock-heading">
+              <div>
+                <h3>{% if user.is_authenticated %}Daily Briefing for {{ user.first_name|default:user.email|default:"User" }}{% else %}Daily Intelligence Briefing{% endif %}</h3>
+                <p>{% if user.is_authenticated %}Personalized agent briefings synced live{% else %}Aggregated from all active communication streams{% endif %}</p>
+              </div>
+              <div class="mock-badges"><span>5 Critical Notifications</span><span>Agent Active</span></div>
+            </div>
+            <div class="mock-card">
+              <div class="mock-card-top"><span>WhatsApp Smart Reminder</span><small>2m ago</small></div>
+              <p>"Hey, send me the slides before our 5 PM call" - John</p>
+              <strong>Send Pitch Slides to John</strong>
+              <small>Today, 4:45 PM (Reminder Set)</small>
+              <span class="pill success">Synced</span>
+            </div>
+            <div class="mock-card">
+              <div class="mock-card-top"><span>Gmail Urgent Action</span><small>14m ago</small></div>
+              <p>"We need to review and sign the NDA before onboarding the contractors..."</p>
+              <div class="mock-buttons"><button class="btn btn-mini" type="button">Draft NDA Response</button><button class="btn btn-mini btn-ghost" type="button">Forward NDA</button></div>
+            </div>
+            <p class="mock-activity">AI analyzed 14 conversations and extracted 3 tasks in the last 15 minutes. <a href="#playground">Test in simulator →</a></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="features">
+    <div class="container">
+      <div class="section-head">
+        <div class="eyebrow">Core Capabilities</div>
+        <h2>A unified cognitive layer for your communication tools</h2>
+      </div>
+      <div class="card-grid five">
+        <article class="feature-card glow-on-hover"><div class="feature-icon">◇</div><h3>Orchestrator</h3><p>One command center for every account, channel, and agent task.</p></article>
+        <article class="feature-card glow-on-hover"><div class="feature-icon">✦</div><h3>Cognitive</h3><p>AI summaries that preserve context, intent, and deadlines.</p></article>
+        <article class="feature-card glow-on-hover"><div class="feature-icon">↻</div><h3>Automation</h3><p>Turn conversations into tasks, follow-ups, and prepared replies.</p></article>
+        <article class="feature-card glow-on-hover"><div class="feature-icon">⌾</div><h3>Security</h3><p>Encrypted connections with granular control over what is processed.</p></article>
+        <article class="feature-card glow-on-hover"><div class="feature-icon">◎</div><h3>Interactions</h3><p>Chat with an assistant that knows what happened across your apps.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="playground">
+    <div class="container">
+      <div class="section-head">
+        <div class="eyebrow">Live Simulation</div>
+        <h2>Test the AI Sync Engine in Real-Time</h2>
+      </div>
+      <div class="simulator">
+        <div class="channel-tabs" role="tablist">
+          <button type="button" class="channel-tab active" data-channel="gmail">Gmail</button>
+          <button type="button" class="channel-tab" data-channel="whatsapp">WhatsApp</button>
+          <button type="button" class="channel-tab" data-channel="telegram">Telegram</button>
+          <button type="button" class="channel-tab" data-channel="outlook">Outlook</button>
+        </div>
+        <div class="simulator-grid">
+          <div class="simulator-input">
+            <div class="panel-title"><span>Incoming Notification: <b data-sim-channel-name>Gmail</b></span><small>via API Gateway</small></div>
+            <div class="sim-message" data-sim-message>
+              <div class="sim-avatar">SF</div>
+              <div><strong data-sim-from>sarah.finance@corp.com</strong><small data-sim-time>10:42 AM</small><p data-sim-body></p></div>
+            </div>
+            <button class="btn btn-primary" type="button" data-sim-run>Analyze with OmniSync AI</button>
+            <div class="progress"><span data-sim-progress></span></div>
+            <small data-sim-status>AI Engine Standby</small>
+          </div>
+          <div class="simulator-output">
+            <div class="panel-title"><span>AI Core Output</span><small data-sim-badge>AI Engine Standby</small></div>
+            <div class="sim-output" data-sim-output>Run the simulator to see extracted actions, summaries, and drafts.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="workflow">
+    <div class="container">
+      <div class="section-head"><div class="eyebrow">Onboarding</div><h2>Setup your Assistant in 3 Steps</h2></div>
+      <div class="card-grid three">
+        <article class="step-card"><span>01</span><h3>Securely Connect</h3><p>Link Gmail and WhatsApp through OAuth or local demo pairing.</p></article>
+        <article class="step-card"><span>02</span><h3>Define Rules</h3><p>Choose what should become an alert, a briefing item, or a draft.</p></article>
+        <article class="step-card"><span>03</span><h3>Reclaim Your Focus</h3><p>Review one intelligent brief instead of hunting through five apps.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="pricing">
+    <div class="container">
+      <div class="section-head"><div class="eyebrow">Subscription</div><h2>Pricing Plans for Every Workflow</h2></div>
+      <div class="card-grid three pricing-grid">
+        <article class="price-card">
+          <h3>Starter</h3><div class="price">$0</div><p>For trying OmniSync with essential reminders.</p>
+          <ul><li>Basic Reminder Syncing</li><li class="muted">Context-Aware Reply Suggestions</li><li class="muted">Local Offline LLM Execution</li></ul>
+          <a class="btn btn-secondary" href="{% url 'sign-up' %}">Get Started</a>
+        </article>
+        <article class="price-card featured">
+          <span class="popular-badge">Most Popular</span><h3>Professional</h3><div class="price">$19 <small>/ month</small></div><p>For active power users who live in their inbox.</p>
+          <ul><li>Connect Unlimited Accounts</li><li>Unlimited AI Digests &amp; Summaries</li><li>Real-time Calendar conflict sync</li><li>AI Tone-Matched Suggested Replies</li><li>Secure Local processing enclave</li></ul>
+          <a class="btn btn-primary" href="{% url 'sign-up' %}">Start 14-Day Free Trial</a>
+        </article>
+        <article class="price-card">
+          <h3>Enterprise</h3><div class="price">Custom</div><p>For corporate teams &amp; compliance.</p>
+          <ul><li>Custom SSO &amp; Identity sync</li><li>Private LLM deployments (VPC/On-prem)</li><li>Custom SLA &amp; 24/7 Phone Support</li><li>Granular permission auditer tools</li></ul>
+          <a class="btn btn-secondary" href="mailto:sales@omnisync.ai">Contact Sales</a>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="faq">
+    <div class="container faq-wrap">
+      <div class="section-head"><div class="eyebrow">Questions</div><h2>Frequently Asked Questions</h2></div>
+      <div class="faq-list">
+        <details open><summary>How secure is my connected account data?</summary><p>We prioritize your privacy above all. OmniSync utilizes bank-grade OAuth connections to sync your channels. All cognitive summaries and reply draft processing are performed inside secure sandboxed execution enclaves. Your data is encrypted in transit and at rest using AES-256 protocols.</p></details>
+        <details><summary>Does the AI read all my private chats continuously?</summary><p>No. OmniSync's listener engine parses raw metadata streams to identify target tasks. It only processes message body text when specific events occur (e.g., extracting reminders, creating requested summaries, or drafting answers). You have granular control to pause syncing on any chat, channel, or email at any moment.</p></details>
+        <details><summary>Can I sync multiple Gmail or Outlook accounts?</summary><p>Yes! With our Professional plan, you can connect as many business or personal Gmail and Outlook workspaces as you need. All accounts are pooled into a single daily dashboard overview so you can track all action items in one spot.</p></details>
+        <details><summary>Does it support voice messages in WhatsApp or Telegram?</summary><p>Yes! OmniSync features built-in high-accuracy speech-to-text translators. When you receive a long voice message, the system transcribes it locally and supplies a text digest so you can grasp the key points without listening to the audio.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="section waitlist-section" id="waitlist">
+    <div class="container waitlist-card">
+      <h2>Ready to reclaim your focus?</h2>
+      <p>Join the waitlist for early access to new OmniSync capabilities.</p>
+      <form class="waitlist-form" data-waitlist-form>
+        <input type="email" name="email" placeholder="Enter your business email" required>
+        <button class="btn btn-primary" type="submit">Join the Waitlist</button>
+      </form>
+      <div class="waitlist-result" data-waitlist-result></div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div class="footer-brand">
+      <a class="brand" href="/"><span class="brand-mark">O</span> OmniSync.ai</a>
+      <p>Your connected AI chief of staff.</p>
+      <div class="social-links"><a href="https://twitter.com" aria-label="Twitter">Twitter</a><a href="https://github.com" aria-label="GitHub">GitHub</a><a href="https://discord.com" aria-label="Discord">Discord</a></div>
+    </div>
+    <div><h4>Product</h4><a href="#features">Features</a><a href="#playground">Live Simulator</a><a href="#pricing">Pricing Plans</a><a href="#workflow">How it Works</a><a href="#">Release Notes</a></div>
+    <div><h4>Integrations</h4><a href="#features">Gmail</a><a href="#features">WhatsApp</a><a href="#features">Telegram</a><a href="#features">Outlook</a><a href="#features">Slack (Soon)</a></div>
+    <div><h4>Resources</h4><a href="#">Documentation</a><a href="#">API Status</a><a href="#">Security Guide</a><a href="#">Privacy Policy</a><a href="#">Terms of Service</a></div>
+    <div><h4>Company</h4><a href="#">About Us</a><a href="#">Careers <span class="mini-badge">Hiring</span></a><a href="#">Blog</a><a href="#">Press Kit</a><a href="#">Contact Support</a></div>
+  </div>
+  <div class="container footer-bottom"><span>© 2026 OmniSync.ai</span><div><a href="#">Privacy Shield</a><a href="#">CCPA Data Privacy</a><a href="#">GDPR Compliance</a></div></div>
+</footer>
+{% endblock %}

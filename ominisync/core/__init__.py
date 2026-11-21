@@ -1,0 +1,1 @@
+"""The OmniSync Django application."""
